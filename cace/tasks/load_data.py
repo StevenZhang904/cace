@@ -19,7 +19,8 @@ def load_data_loader(
     collection: SubsetCollection,
     data_type: str, # ['train', 'valid', 'test']
     batch_size: int,
-    cutoff: float
+    cutoff: float, 
+    pretrain_config: dict, 
 ):
     allowed_types = ['train', 'valid', 'test']
     if data_type not in allowed_types:
@@ -28,7 +29,7 @@ def load_data_loader(
     if data_type == 'train':
         loader = torch_geometric.DataLoader(
             dataset=[
-                AtomicData.from_config(config, cutoff=cutoff)
+                AtomicData.from_config(config, cutoff=cutoff, pretrain_config = pretrain_config)
                 for config in collection.train
             ],
             batch_size=batch_size,
@@ -38,7 +39,7 @@ def load_data_loader(
     elif data_type == 'valid':
         loader = torch_geometric.DataLoader(
             dataset=[
-                AtomicData.from_config(config, cutoff=cutoff)
+                AtomicData.from_config(config, cutoff=cutoff, pretrain_config = pretrain_config)
                 for config in collection.valid
             ],
             batch_size=batch_size,

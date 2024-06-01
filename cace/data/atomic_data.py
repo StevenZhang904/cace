@@ -4,6 +4,8 @@
 # This program is distributed under the MIT License (see MIT.md)
 ###########################################################################################
 
+import torch
+import numpy as np
 from typing import Optional, Sequence
 
 #import torch_geometric
@@ -15,6 +17,70 @@ from ..tools import voigt_to_matrix
 from .neighborhood import get_neighborhood
 from .utils import Configuration
 
+def create_mask(atom_type, ratio):
+    '''
+    returns a mask that mask out hydrogen positions w.r.t their connected oxygen atoms,
+    which are selected with given ratio 
+    mask_value: 
+    0: nothing
+    1: in a molecule whose hydrogen has been masked
+    2: is the hydrogen atom that has been masked
+    '''
+    num_molecules = len(atom_type) // 3
+    # randomly select molecules according to ratio
+    # print('num_molecules: ', num_molecules)
+    num_selected = int(num_molecules * ratio)
+    assert num_selected > 0, 'masking ratio is too small'
+    selected_idx = np.random.choice(num_molecules, num_selected, replace=False)
+    # create mask
+    mask = torch.zeros_like(atom_type, dtype=torch.long)
+    for i in selected_idx:
+        # Here we assume that data is in repetition of (O,H,H) sequence
+        mask[i*3] = 1
+        if np.random.rand() < 0.5:  # break tie
+            mask[i*3+1] = 1
+            mask[i*3+2] = 2
+        else:
+            mask[i*3+2] = 1
+            mask[i*3+1] = 2
+    return mask
+
+def get_rel_disp(mask, pos, cell_size):
+        '''
+        Params:
+        mask: hydrogen mask from oxygen_positional_encoding
+        pos: unmodified positions tensor
+        cell_size
+
+        Among all water molecules, using masks to identify which water mol has been selected
+        by hydrogen mask, for that particular water mol, calculate the displacements between
+        the unmasked atoms to the masked hydrogen atom. 
+
+        returns: a list of displacements with shape (N, 3)
+        '''
+        masked_disp = torch.zeros_like(pos)
+        for i in range(0, len(mask), 3):
+            if mask[i] == 1:
+                for k in range(3):
+                    if mask[i+2] == 2: 
+                        masked_disp[i][k] = pos[i+2][k] - pos[i][k]
+                        masked_disp[i+1][k] = pos[i+2][k] - pos[i+1][k]
+                    elif mask[i+1] == 2:
+                        masked_disp[i][k] = pos[i+1][k] - pos[i][k]
+                        masked_disp[i+2][k] = pos[i+1][k] - pos[i+2][k]
+
+                # fist, make sure the displacement is within the box
+                masked_disp[i] = torch.remainder(masked_disp[i]  + cell_size[0]/2., cell_size[0]) - cell_size[0]/2.
+                masked_disp[i+1] = torch.remainder(masked_disp[i+1] + cell_size[1]/2., cell_size[1]) - cell_size[1]/2.
+                masked_disp[i+2] = torch.remainder(masked_disp[i+2] + cell_size[2]/2., cell_size[2]) - cell_size[2]/2.
+
+                # normalize
+                masked_disp[i] = masked_disp[i] / torch.norm(masked_disp[i])
+                masked_disp[i+1] = masked_disp[i+1] / torch.norm(masked_disp[i+1])
+                masked_disp[i+2] = masked_disp[i+2] / torch.norm(masked_disp[i+2])
+
+        masked_disp = masked_disp[mask != 2].view(-1,3) # remove masked hydrogen from it
+        return masked_disp     
 
 class AtomicData(torch_geometric.data.Data):
     atomic_numbers: torch.Tensor
@@ -39,7 +105,9 @@ class AtomicData(torch_geometric.data.Data):
     forces_weight: torch.Tensor
     stress_weight: torch.Tensor
     virials_weight: torch.Tensor
-
+    mask: torch.Tensor
+    disp: torch.Tensor
+    
     def __init__(
         self,
         edge_index: torch.Tensor,  # [2, n_edges], always sender -> receiver
@@ -60,11 +128,13 @@ class AtomicData(torch_geometric.data.Data):
         virials: Optional[torch.Tensor],  # [1,3,3]
         dipole: Optional[torch.Tensor],  # [, 3]
         charges: Optional[torch.Tensor],  # [n_nodes, ]
+        mask: Optional[torch.Tensor],
+        disp: Optional[torch.Tensor],
     ):
         # Check shapes
         #assert num_nodes == atomic_numbers.shape[0]
         assert edge_index.shape[0] == 2 and len(edge_index.shape) == 2
-        assert positions.shape == (num_nodes, 3)
+        # assert positions.shape == (num_nodes, 3)
         assert shifts.shape[1] == 3
         assert unit_shifts.shape[1] == 3
         assert weight is None or len(weight.shape) == 0
@@ -100,17 +170,18 @@ class AtomicData(torch_geometric.data.Data):
             "virials": virials,
             "dipole": dipole,
             "charges": charges,
+            "mask": mask, 
+            "disp": disp, 
         }
         super().__init__(**data)
 
     @classmethod
     def from_config(
         cls, config: Configuration, 
-        cutoff: float, 
+        cutoff: float,
+        pretrain_config: dict, 
     ) -> "AtomicData":
-        edge_index, shifts, unit_shifts  = get_neighborhood(
-            positions=config.positions, cutoff=cutoff, pbc=config.pbc, cell=config.cell
-        )
+
   
         atomic_numbers = torch.tensor(config.atomic_numbers, dtype=torch.long)
 
@@ -185,26 +256,64 @@ class AtomicData(torch_geometric.data.Data):
             else None
         )
 
-        return cls(
-            edge_index=torch.tensor(edge_index, dtype=torch.long),
-            positions=torch.tensor(config.positions, dtype=torch.get_default_dtype()),
-            shifts=torch.tensor(shifts, dtype=torch.get_default_dtype()),
-            unit_shifts=torch.tensor(unit_shifts, dtype=torch.get_default_dtype()),
-            cell=cell,
-            atomic_numbers=atomic_numbers,
-            num_nodes=atomic_numbers.shape[0],
-            weight=weight,
-            energy_weight=energy_weight,
-            forces_weight=forces_weight,
-            stress_weight=stress_weight,
-            virials_weight=virials_weight,
-            forces=forces,
-            energy=energy,
-            stress=stress,
-            virials=virials,
-            dipole=dipole,
-            charges=charges,
-        )
+        
+        if pretrain_config['status'] == True:
+            hydrogen_mask = create_mask(atomic_numbers, ratio = pretrain_config["ratio"])
+            disp = get_rel_disp(mask=hydrogen_mask, pos=torch.tensor(config.positions, dtype=torch.get_default_dtype()), cell_size=cell)
+            edge_index, shifts, unit_shifts  = get_neighborhood(
+                positions=config.positions[hydrogen_mask!=2], cutoff=cutoff, pbc=config.pbc, cell=config.cell
+            )               
+            
+            return cls(
+                edge_index=torch.tensor(edge_index, dtype=torch.long),
+                positions=torch.tensor(config.positions, dtype=torch.get_default_dtype())[hydrogen_mask!=2],
+                shifts=torch.tensor(shifts, dtype=torch.get_default_dtype()),
+                unit_shifts=torch.tensor(unit_shifts, dtype=torch.get_default_dtype()),
+                cell=cell,
+                atomic_numbers=atomic_numbers[hydrogen_mask!=2],
+                num_nodes=atomic_numbers.shape[0],
+                weight=weight,
+                energy_weight=energy_weight,
+                forces_weight=forces_weight,
+                stress_weight=stress_weight,
+                virials_weight=virials_weight,
+                forces=forces,
+                energy=energy,
+                stress=stress,
+                virials=virials,
+                dipole=dipole,
+                charges=charges,
+                mask = hydrogen_mask[hydrogen_mask!=2], 
+                disp = disp,
+            ) 
+        else:
+            edge_index, shifts, unit_shifts  = get_neighborhood(
+                positions=config.positions, cutoff=cutoff, pbc=config.pbc, cell=config.cell
+            ) 
+            mask = torch.zeros_like(atomic_numbers)
+            disp = torch.zeros_like(torch.tensor(config.positions, dtype=torch.get_default_dtype()))
+            return cls(
+                edge_index=torch.tensor(edge_index, dtype=torch.long),
+                positions=torch.tensor(config.positions, dtype=torch.get_default_dtype()),
+                shifts=torch.tensor(shifts, dtype=torch.get_default_dtype()),
+                unit_shifts=torch.tensor(unit_shifts, dtype=torch.get_default_dtype()),
+                cell=cell,
+                atomic_numbers=atomic_numbers,
+                num_nodes=atomic_numbers.shape[0],
+                weight=weight,
+                energy_weight=energy_weight,
+                forces_weight=forces_weight,
+                stress_weight=stress_weight,
+                virials_weight=virials_weight,
+                forces=forces,
+                energy=energy,
+                stress=stress,
+                virials=virials,
+                dipole=dipole,
+                charges=charges,
+                mask = mask, 
+                disp = disp,
+            )
 
 
 def get_data_loader(

@@ -106,7 +106,6 @@ class Atomwise(nn.Module):
         # reshape the feature vectors
         features = data['node_feats']
         features = features.reshape(features.shape[0], -1)
-
         if self.n_in is None:
             self.n_in = features.shape[1]
         else:
@@ -134,27 +133,24 @@ class Atomwise(nn.Module):
                 self.linear_nn = self.linear_nn.to(features.device)
             else:
                 self.linear_nn = None
-
         # predict atomwise contributions
         y = self.outnet(features)
         if self.add_linear_nn:
             y += self.linear_nn(features)
-
         # accumulate the per-atom output if necessary
         if self.per_atom_output_key is not None:
             data[self.per_atom_output_key] = y
 
         if self.descriptor_output_key is not None:
             data[self.descriptor_output_key] = features
-
         # aggregate
         if self.aggregation_mode is not None:
             y = scatter_sum(
                 src=y, 
                 index=data["batch"], 
                 dim=0)
-            y = torch.squeeze(y, -1)
 
+            y = torch.squeeze(y, -1)
             if self.aggregation_mode == "avg":
                 y = y / torch.bincount(data['batch'])
 

@@ -134,17 +134,13 @@ class NeuralNetworkPotential(AtomisticModel):
                 ) -> Dict[str, torch.Tensor]:
         # initialize derivatives for response properties
         data = self.initialize_derivatives(data)
-
         if 'stress' in self.model_outputs or 'CACE_stress' in self.model_outputs:
             compute_stress = True
         for m in self.input_modules:
             data = m(data, compute_stress=compute_stress, compute_virials=compute_virials)
-
         data = self.representation(data)
-
         for m in self.output_modules:
             data = m(data, training=training)
-
         # apply postprocessing (if enabled)
         data = self.postprocess(data)
 

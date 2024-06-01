@@ -7,6 +7,7 @@ sys.path.append('cace/')
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import logging
 
 import cace
@@ -20,7 +21,8 @@ from cace.tasks.train import TrainingTask
 torch.set_default_dtype(torch.float32)
 
 cace.tools.setup_logger(level='INFO')
-PRETRAIN = False
+PRETRAIN = {"status": True, "ratio": 0.1}
+logging.info("Pretraining the model!")
 logging.info("reading data")
 collection = cace.tasks.get_dataset_from_xyz(train_path='dataset_1593.xyz',
                                  valid_fraction=0.1,
@@ -35,12 +37,14 @@ batch_size = 2
 train_loader = cace.tasks.load_data_loader(collection=collection,
                               data_type='train',
                               batch_size=batch_size,
-                              cutoff=cutoff)
+                              cutoff=cutoff,
+                              pretrain_config=PRETRAIN)
 
 valid_loader = cace.tasks.load_data_loader(collection=collection,
                               data_type='valid',
                               batch_size=4,
-                              cutoff=cutoff)
+                              cutoff=cutoff,
+                              pretrain_config=PRETRAIN)
 
 use_device = 'cpu'
 device = cace.tools.init_device(use_device)
@@ -81,7 +85,7 @@ atomwise = cace.modules.atomwise.Atomwise(n_layers=3,
 
 
 forces = cace.modules.forces.Forces(energy_key='CACE_energy',
-                                    forces_key='CACE_forces')
+                                    forces_key='CACE_disp')
 
 logging.info("building CACE NNP")
 cace_nnp = NeuralNetworkPotential(
@@ -95,33 +99,21 @@ cace_nnp.to(device)
 
 
 logging.info(f"First train loop:")
-energy_loss = cace.tasks.GetLoss(
-    target_name='energy',
-    predict_name='CACE_energy',
-    loss_fn=torch.nn.MSELoss(),
-    loss_weight=0.1
-)
 
-force_loss = cace.tasks.GetLoss(
-    target_name='forces',
-    predict_name='CACE_forces',
-    loss_fn=torch.nn.MSELoss(),
-    loss_weight=1000
+
+disp_loss = cace.tasks.GetLoss(
+    target_name='disp',
+    predict_name='CACE_disp',
+    loss_fn=nn.CosineSimilarity(),
+    loss_weight=1
 )
 
 from cace.tools import Metrics
 
-e_metric = Metrics(
-    target_name='energy',
-    predict_name='CACE_energy',
-    name='e/atom',
-    per_atom=True
-)
-
-f_metric = Metrics(
-    target_name='forces',
-    predict_name='CACE_forces',
-    name='f'
+disp_metric = Metrics(
+    target_name='disp',
+    predict_name='CACE_disp',
+    name='disp'
 )
 
 # Example usage
@@ -133,8 +125,8 @@ scheduler_args = {'step_size': 20, 'gamma': 0.5}
 for i in range(5):
     task = TrainingTask(
         model=cace_nnp,
-        losses=[energy_loss, force_loss],
-        metrics=[e_metric, f_metric],
+        losses=[disp_loss],
+        metrics=[disp_metric],
         device=device,
         optimizer_args=optimizer_args,
         scheduler_cls=torch.optim.lr_scheduler.StepLR,
@@ -151,49 +143,6 @@ for i in range(5):
 task.save_model('water-model.pth')
 cace_nnp.to(device)
 
-logging.info(f"Second train loop:")
-energy_loss = cace.tasks.GetLoss(
-    target_name='energy',
-    predict_name='CACE_energy',
-    loss_fn=torch.nn.MSELoss(),
-    loss_weight=1
-)
-
-task.update_loss([energy_loss, force_loss])
-logging.info("training")
-task.fit(train_loader, valid_loader, epochs=100, screen_nan=False)
-
-
-task.save_model('water-model-2.pth')
-cace_nnp.to(device)
-
-logging.info(f"Third train loop:")
-energy_loss = cace.tasks.GetLoss(
-    target_name='energy',
-    predict_name='CACE_energy',
-    loss_fn=torch.nn.MSELoss(),
-    loss_weight=10 
-)
-
-task.update_loss([energy_loss, force_loss])
-task.fit(train_loader, valid_loader, epochs=100, screen_nan=False)
-
-task.save_model('water-model-3.pth')
-
-logging.info(f"Fourth train loop:")
-energy_loss = cace.tasks.GetLoss(
-    target_name='energy',
-    predict_name='CACE_energy',
-    loss_fn=torch.nn.MSELoss(),
-    loss_weight=1000
-)
-
-task.update_loss([energy_loss, force_loss])
-task.fit(train_loader, valid_loader, epochs=100, screen_nan=False)
-
-task.save_model('water-model-4.pth')
-
-logging.info(f"Finished")
 
 
 trainable_params = sum(p.numel() for p in cace_nnp.parameters() if p.requires_grad)

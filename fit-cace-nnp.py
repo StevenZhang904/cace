@@ -20,7 +20,7 @@ from cace.tasks.train import TrainingTask
 torch.set_default_dtype(torch.float32)
 
 cace.tools.setup_logger(level='INFO')
-
+PRETRAIN = {"status": False, "ratio": 0}
 logging.info("reading data")
 collection = cace.tasks.get_dataset_from_xyz(train_path='dataset_1593.xyz',
                                  valid_fraction=0.1,
@@ -35,12 +35,16 @@ batch_size = 2
 train_loader = cace.tasks.load_data_loader(collection=collection,
                               data_type='train',
                               batch_size=batch_size,
-                              cutoff=cutoff)
+                              cutoff=cutoff,
+                              pretrain_config=PRETRAIN,
+                              )
 
 valid_loader = cace.tasks.load_data_loader(collection=collection,
                               data_type='valid',
                               batch_size=4,
-                              cutoff=cutoff)
+                              cutoff=cutoff,
+                              pretrain_config=PRETRAIN, 
+                              )
 
 use_device = 'cpu'
 device = cace.tools.init_device(use_device)

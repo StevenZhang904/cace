@@ -5,7 +5,7 @@ from torch import nn
 from .loss import GetLoss
 from ..tools import Metrics
 from ..tools import to_numpy, tensor_dict_to_device
-
+from tqdm import tqdm
 """
 This file contains the training loop for the neural network model.
 """
@@ -182,7 +182,7 @@ class TrainingTask(nn.Module):
 
         best_val_loss = float('inf')
 
-        for epoch in range(1, epochs + 1):
+        for epoch in tqdm(range(1, epochs + 1)):
 
             # start SWA if needed
             if self.swa and self.global_step >= self.swa_start:
