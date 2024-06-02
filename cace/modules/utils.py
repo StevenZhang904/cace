@@ -156,8 +156,8 @@ def get_edge_node_type(
 
     edge_type = torch.zeros([edge_index.shape[1], 2, node_type.shape[1]], 
                            dtype=node_type.dtype, device=node_type.device)
-    print("node_type", node_type.shape, "edge_index[0]", edge_index[0].shape)
-    print("edge_index", edge_index[0])
+    # print("node_type", node_type.shape, "edge_index[0]", edge_index[0].shape)
+    # print("edge_index", edge_index[0])
     sender_type = node_type[edge_index[0]]
     receiver_type = node_type_2[edge_index[1]]
     return sender_type, receiver_type  # [n_edges, n_dims]

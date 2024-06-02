@@ -167,6 +167,7 @@ class Cace(nn.Module):
         node_embedded_sender = self.node_embedding_sender(node_one_hot)
         node_embedded_receiver = self.node_embedding_receiver(node_one_hot)
         ## get the edge type
+        # print("egde_index", data["edge_index"])
         encoded_edges = self.edge_coding(edge_index=data["edge_index"],
                                          node_type=node_embedded_sender,
                                          node_type_2=node_embedded_receiver,)

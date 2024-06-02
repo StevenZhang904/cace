@@ -68,16 +68,23 @@ def get_rel_disp(mask, pos, cell_size):
                     elif mask[i+1] == 2:
                         masked_disp[i][k] = pos[i+1][k] - pos[i][k]
                         masked_disp[i+2][k] = pos[i+1][k] - pos[i+2][k]
+                    else:
+                        raise ValueError('mask value error')
 
                 # fist, make sure the displacement is within the box
                 masked_disp[i] = torch.remainder(masked_disp[i]  + cell_size[0]/2., cell_size[0]) - cell_size[0]/2.
                 masked_disp[i+1] = torch.remainder(masked_disp[i+1] + cell_size[1]/2., cell_size[1]) - cell_size[1]/2.
                 masked_disp[i+2] = torch.remainder(masked_disp[i+2] + cell_size[2]/2., cell_size[2]) - cell_size[2]/2.
+                ### TODO: fix this, the above code will cause nan in disp
+                
 
                 # normalize
-                masked_disp[i] = masked_disp[i] / torch.norm(masked_disp[i])
-                masked_disp[i+1] = masked_disp[i+1] / torch.norm(masked_disp[i+1])
-                masked_disp[i+2] = masked_disp[i+2] / torch.norm(masked_disp[i+2])
+                if torch.norm(masked_disp[i]) != 0:
+                    masked_disp[i] = masked_disp[i] / torch.norm(masked_disp[i])
+                if torch.norm(masked_disp[i+1]) != 0:
+                    masked_disp[i+1] = masked_disp[i+1] / torch.norm(masked_disp[i+1])
+                if torch.norm(masked_disp[i+2]) != 0:
+                    masked_disp[i+2] = masked_disp[i+2] / torch.norm(masked_disp[i+2])
 
         masked_disp = masked_disp[mask != 2].view(-1,3) # remove masked hydrogen from it
         return masked_disp     
@@ -149,6 +156,7 @@ class AtomicData(torch_geometric.data.Data):
         assert virials is None or virials.shape == (1, 3, 3)
         assert dipole is None or dipole.shape[-1] == 3
         assert charges is None or charges.shape == (num_nodes,)
+        assert disp is None or torch.isnan(disp).sum() == 0
         # Aggregate data
         data = {
             "num_nodes": num_nodes,
@@ -271,18 +279,18 @@ class AtomicData(torch_geometric.data.Data):
                 unit_shifts=torch.tensor(unit_shifts, dtype=torch.get_default_dtype()),
                 cell=cell,
                 atomic_numbers=atomic_numbers[hydrogen_mask!=2],
-                num_nodes=atomic_numbers.shape[0],
+                num_nodes=atomic_numbers[hydrogen_mask!=2].shape[0],
                 weight=weight,
                 energy_weight=energy_weight,
                 forces_weight=forces_weight,
                 stress_weight=stress_weight,
                 virials_weight=virials_weight,
-                forces=forces,
+                forces=forces[hydrogen_mask!=2],
                 energy=energy,
                 stress=stress,
                 virials=virials,
                 dipole=dipole,
-                charges=charges,
+                charges=charges[hydrogen_mask!=2],
                 mask = hydrogen_mask[hydrogen_mask!=2], 
                 disp = disp,
             ) 
