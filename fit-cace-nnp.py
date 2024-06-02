@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import logging
+import wandb
 
 import cace
 from cace.representations import Cace
@@ -16,6 +17,9 @@ from cace.modules import BesselRBF, GaussianRBF, GaussianRBFCentered
 
 from cace.models.atomistic import NeuralNetworkPotential
 from cace.tasks.train import TrainingTask
+
+wandb.init(project='CACE')
+
 
 torch.set_default_dtype(torch.float32)
 
@@ -30,7 +34,7 @@ collection = cace.tasks.get_dataset_from_xyz(train_path='dataset_1593.xyz',
                                  atomic_energies={1: -187.6043857100553, 8: -93.80219285502734} # avg
                                  )
 cutoff = 5.5
-batch_size = 2
+batch_size = 20
 
 train_loader = cace.tasks.load_data_loader(collection=collection,
                               data_type='train',
@@ -46,7 +50,7 @@ valid_loader = cace.tasks.load_data_loader(collection=collection,
                               pretrain_config=PRETRAIN, 
                               )
 
-use_device = 'cpu'
+use_device = 'cuda:0'
 device = cace.tools.init_device(use_device)
 logging.info(f"device: {use_device}")
 

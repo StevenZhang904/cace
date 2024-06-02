@@ -17,11 +17,14 @@ from cace.modules import BesselRBF, GaussianRBF, GaussianRBFCentered
 
 from cace.models.atomistic import NeuralNetworkPotential
 from cace.tasks.train import TrainingTask
+import wandb
+
+wandb.init(project='CACE_pretrain')
 
 torch.set_default_dtype(torch.float32)
 
 cace.tools.setup_logger(level='INFO')
-PRETRAIN = {"status": True, "ratio": 0.1}
+PRETRAIN = {"status": True, "ratio": 0.5}
 logging.info("Pretraining the model!")
 logging.info("reading data")
 collection = cace.tasks.get_dataset_from_xyz(train_path='dataset_1593.xyz',
@@ -32,7 +35,7 @@ collection = cace.tasks.get_dataset_from_xyz(train_path='dataset_1593.xyz',
                                  atomic_energies={1: -187.6043857100553, 8: -93.80219285502734} # avg
                                  )
 cutoff = 5.5
-batch_size = 2
+batch_size = 1
 
 train_loader = cace.tasks.load_data_loader(collection=collection,
                               data_type='train',
@@ -85,7 +88,7 @@ atomwise = cace.modules.atomwise.Atomwise(n_layers=3,
 
 
 forces = cace.modules.forces.Forces(energy_key='CACE_energy',
-                                    forces_key='CACE_disp')
+                                    forces_key='CACE_forces')
 
 logging.info("building CACE NNP")
 cace_nnp = NeuralNetworkPotential(
@@ -103,16 +106,17 @@ logging.info(f"First train loop:")
 
 disp_loss = cace.tasks.GetLoss(
     target_name='disp',
-    predict_name='CACE_disp',
+    predict_name='CACE_forces',
     loss_fn=nn.CosineSimilarity(),
-    loss_weight=1
+    loss_weight=1,
+    name="CosineSimilarity"
 )
 
 from cace.tools import Metrics
 
 disp_metric = Metrics(
     target_name='disp',
-    predict_name='CACE_disp',
+    predict_name='CACE_forces',
     name='disp'
 )
 
