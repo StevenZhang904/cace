@@ -6,6 +6,7 @@ from .loss import GetLoss
 from ..tools import Metrics
 from ..tools import to_numpy, tensor_dict_to_device
 from tqdm import tqdm
+import wandb
 """
 This file contains the training loop for the neural network model.
 """
@@ -119,6 +120,7 @@ class TrainingTask(nn.Module):
         self.log_metrics('train', pred, batch_dict)
 
         loss = self.loss_fn(pred, batch_dict, {'epochs': self.global_step, 'training': True})
+        print("loss: ", loss)   
         loss.backward()
 
         # Print gradients for debugging purposes
@@ -146,6 +148,8 @@ class TrainingTask(nn.Module):
             self.optimizer.step()
             if self.ema and self.global_step >= self.ema_start:
                 self.ema_model.update_parameters(self.model)
+                
+        wandb.log({"train_loss": loss.item(), "step": self.global_step})
 
         return to_numpy(loss).item()
 
@@ -165,8 +169,11 @@ class TrainingTask(nn.Module):
             loss = to_numpy(self.loss_fn(pred, batch_dict, {'epochs': self.global_step, 'training': False}))
             total_loss += loss.item()
             self.log_metrics('val', pred, batch_dict)
+            
+        avg_val_loss = total_loss / len(val_loader)            
+        wandb.log({"val_loss": avg_val_loss, "step": self.global_step})
 
-        return total_loss / len(val_loader)
+        return avg_val_loss
 
     def fit(self, 
             train_loader, 
@@ -234,6 +241,7 @@ class TrainingTask(nn.Module):
 
             if checkpoint_path is not None and epoch % checkpoint_stride == 0:
                 self.checkpoint(checkpoint_path)
+            wandb.log({"epoch": epoch, "train_loss": avg_loss, "val_loss": val_loss})
 
             self.global_step += 1 
 
