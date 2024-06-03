@@ -170,9 +170,11 @@ class Cace(nn.Module):
         node_embedded_sender = self.node_embedding_sender(node_one_hot)
         node_embedded_receiver = self.node_embedding_receiver(node_one_hot)
         
-        if data['mask'] is None:
+        # check if data['mask'] is all zero
+        if torch.sum(data['mask']) == 0:
             mask_embed = 0
-        elif data['mask'] is not None:
+
+        elif torch.sum(data['mask']) != 0:
             mask_embed = self.mask_embedding(data['mask'])        
         else:
             raise ValueError("mask should be either None or a tensor")

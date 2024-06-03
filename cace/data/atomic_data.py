@@ -344,7 +344,7 @@ class AtomicData(torch_geometric.data.Data):
             edge_index, shifts, unit_shifts  = get_neighborhood(
                 positions=config.positions, cutoff=cutoff, pbc=config.pbc, cell=config.cell
             ) 
-            mask = None
+            mask = torch.zeros_like(atomic_numbers, dtype=torch.long)
             disp = torch.zeros_like(torch.tensor(config.positions, dtype=torch.get_default_dtype()))
             return cls(
                 edge_index=torch.tensor(edge_index, dtype=torch.long),
