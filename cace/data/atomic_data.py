@@ -17,6 +17,49 @@ from ..tools import voigt_to_matrix
 from .neighborhood import get_neighborhood
 from .utils import Configuration
 
+
+def apply_pbc(masked_disp: torch.Tensor, cell: torch.Tensor) -> torch.Tensor:
+    # Ensure the cell is of shape [3, 3]
+    cell = cell.view(3, 3)
+    
+    # Check for NaNs in the input
+    if torch.isnan(masked_disp).any() or torch.isnan(cell).any():
+        raise ValueError("Input tensors contain NaN values.")
+    
+    # Check if the cell matrix is singular
+    if torch.det(cell) == 0:
+        raise ValueError("Cell matrix is singular and cannot be inverted.")
+    
+    try:
+        # Compute the inverse of the cell matrix
+        cell_inv = torch.inverse(cell)
+    except RuntimeError as e:
+        raise ValueError(f"Failed to invert cell matrix: {e}")
+    
+    # If masked_disp is a 1-dimensional tensor, reshape it to [1, 3] for batch processing
+    if masked_disp.ndimension() == 1:
+        masked_disp = masked_disp.unsqueeze(0)
+    
+    # Map the displacements into fractional coordinates
+    frac_disp = torch.matmul(masked_disp, cell_inv)
+    
+    # Apply the periodic boundary conditions in fractional coordinates
+    frac_disp = frac_disp - torch.floor(frac_disp + 0.5)
+    
+    # Map the displacements back to Cartesian coordinates
+    cart_disp = torch.matmul(frac_disp, cell)
+    
+    # Check for NaNs in the output
+    if torch.isnan(cart_disp).any():
+        raise ValueError("Output tensor contains NaN values.")
+    
+    # If the original input was 1-dimensional, return a 1-dimensional output
+    if cart_disp.shape[0] == 1:
+        cart_disp = cart_disp.squeeze(0)
+    
+    return cart_disp
+
+
 def create_mask(atom_type, ratio):
     '''
     returns a mask that mask out hydrogen positions w.r.t their connected oxygen atoms,
@@ -72,11 +115,14 @@ def get_rel_disp(mask, pos, cell_size):
                         raise ValueError('mask value error')
 
                 # fist, make sure the displacement is within the box
-                masked_disp[i] = torch.remainder(masked_disp[i]  + cell_size[0]/2., cell_size[0]) - cell_size[0]/2.
-                masked_disp[i+1] = torch.remainder(masked_disp[i+1] + cell_size[1]/2., cell_size[1]) - cell_size[1]/2.
-                masked_disp[i+2] = torch.remainder(masked_disp[i+2] + cell_size[2]/2., cell_size[2]) - cell_size[2]/2.
-                ### TODO: fix this, the above code will cause nan in disp
+                # masked_disp[i] = torch.remainder(masked_disp[i]  + cell_size[0]/2., cell_size[0]) - cell_size[0]/2.
+                # masked_disp[i+1] = torch.remainder(masked_disp[i+1] + cell_size[1]/2., cell_size[1]) - cell_size[1]/2.
+                # masked_disp[i+2] = torch.remainder(masked_disp[i+2] + cell_size[2]/2., cell_size[2]) - cell_size[2]/2.
                 
+                ### TODO: fix this, the above code will cause nan in disp
+                masked_disp[i] = apply_pbc(masked_disp[i], cell_size)
+                masked_disp[i+1] = apply_pbc(masked_disp[i+1], cell_size)
+                masked_disp[i+2] = apply_pbc(masked_disp[i+2], cell_size)
 
                 # normalize
                 if torch.norm(masked_disp[i]) != 0:
@@ -298,7 +344,7 @@ class AtomicData(torch_geometric.data.Data):
             edge_index, shifts, unit_shifts  = get_neighborhood(
                 positions=config.positions, cutoff=cutoff, pbc=config.pbc, cell=config.cell
             ) 
-            mask = torch.zeros_like(atomic_numbers)
+            mask = None
             disp = torch.zeros_like(torch.tensor(config.positions, dtype=torch.get_default_dtype()))
             return cls(
                 edge_index=torch.tensor(edge_index, dtype=torch.long),
