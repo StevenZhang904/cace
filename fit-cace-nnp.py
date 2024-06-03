@@ -50,7 +50,7 @@ valid_loader = cace.tasks.load_data_loader(collection=collection,
                               pretrain_config=PRETRAIN, 
                               )
 
-use_device = 'cuda:0'
+use_device = 'cuda'
 device = cace.tools.init_device(use_device)
 logging.info(f"device: {use_device}")
 

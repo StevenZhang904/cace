@@ -24,7 +24,7 @@ wandb.init(project='CACE_pretrain')
 torch.set_default_dtype(torch.float32)
 
 cace.tools.setup_logger(level='INFO')
-Hyperparams = {"pretrain":{"status": True, "ratio": 0.1}, "lr":5e-4, }
+Hyperparams = {"pretrain":{"status": True, "ratio": 0.5}, "lr":1e-4, }
 PRETRAIN = Hyperparams['pretrain']
 wandb.config.update(PRETRAIN)
 logging.info("Pretraining the model!")
@@ -51,7 +51,7 @@ valid_loader = cace.tasks.load_data_loader(collection=collection,
                               cutoff=cutoff,
                               pretrain_config=PRETRAIN)
 
-use_device = 'cpu'
+use_device = 'cuda'
 device = cace.tools.init_device(use_device)
 logging.info(f"device: {use_device}")
 
@@ -146,7 +146,7 @@ task = TrainingTask(
 logging.info("training")
 task.fit(train_loader, valid_loader, epochs=40, screen_nan=False)
 
-task.save_model('water-model.pth')
+task.save_model('pretrain_water-model.pth')
 cace_nnp.to(device)
 
 
