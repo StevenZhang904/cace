@@ -86,8 +86,11 @@ class Cace(nn.Module):
             self.node_embedding_receiver = NodeEmbedding(
                          node_dim=self.nz, embedding_dim=self.n_atom_basis, random_seed=atom_embedding_random_seed[1]
                          )
+
         else:
-            self.node_embedding_receiver = self.node_embedding_sender 
+            self.node_embedding_receiver = self.node_embedding_sender \
+                
+        self.mask_embedding = nn.Embedding(self.nz, self.n_atom_basis)
 
         self.edge_coding = EdgeEncoder(directed=True) 
         self.n_edge_channels = n_atom_basis**2
@@ -166,6 +169,16 @@ class Cace(nn.Module):
         ## embed to a different dimension
         node_embedded_sender = self.node_embedding_sender(node_one_hot)
         node_embedded_receiver = self.node_embedding_receiver(node_one_hot)
+        
+        if data['mask'] is None:
+            mask_embed = 0
+        elif data['mask'] is not None:
+            mask_embed = self.mask_embedding(data['mask'])        
+        else:
+            raise ValueError("mask should be either None or a tensor")
+        
+        node_embedded_sender+=mask_embed
+        node_embedded_receiver+=mask_embed        
         ## get the edge type
         # print("egde_index", data["edge_index"])
         encoded_edges = self.edge_coding(edge_index=data["edge_index"],

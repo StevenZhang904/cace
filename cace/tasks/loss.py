@@ -1,6 +1,7 @@
 from typing import Optional, Dict, Union, Callable
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 __all__ = ["GetLoss", "GetRegularizationLoss", "GetVarianceLoss"]
 
@@ -53,7 +54,13 @@ class GetLoss(nn.Module):
             loss_weight = self.loss_weight
 
         if target is not None:
-            loss = loss_weight * self.loss_fn(
+            if self.name == "CosineSimilarity":
+                reference = F.normalize(target[self.target_name], dim=-1)
+                ### TODO: check with ZIJIE if double normalization is necessary
+                loss = 1 - loss_weight * self.loss_fn(
+                    pred[self.predict_name], reference).mean()
+            else:
+                loss = loss_weight * self.loss_fn(
                 pred[self.predict_name], target[self.target_name]
             )
         elif self.predict_name != self.target_name:
