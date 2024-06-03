@@ -18,6 +18,7 @@ from cace.modules import BesselRBF, GaussianRBF, GaussianRBFCentered
 from cace.models.atomistic import NeuralNetworkPotential
 from cace.tasks.train import TrainingTask
 import wandb
+import yaml
 
 wandb.init(project='CACE_pretrain')
 
@@ -25,8 +26,11 @@ torch.set_default_dtype(torch.float32)
 
 cace.tools.setup_logger(level='INFO')
 Hyperparams = {"pretrain":{"status": True, "ratio": 0.5}, "lr":1e-4, }
+### save hyperparameters as yaml
+with open('pretrain_hyperparams.yaml', 'w') as file:
+    yaml.dump(Hyperparams, file)
 PRETRAIN = Hyperparams['pretrain']
-wandb.config.update(PRETRAIN)
+wandb.config.update(Hyperparams)
 logging.info("Pretraining the model!")
 logging.info("reading data")
 collection = cace.tasks.get_dataset_from_xyz(train_path='dataset_1593.xyz',
@@ -52,7 +56,8 @@ valid_loader = cace.tasks.load_data_loader(collection=collection,
                               pretrain_config=PRETRAIN)
 
 use_device = 'cuda'
-device = cace.tools.init_device(use_device)
+# device = cace.tools.init_device(use_device)
+device = torch.device(use_device)
 logging.info(f"device: {use_device}")
 
 

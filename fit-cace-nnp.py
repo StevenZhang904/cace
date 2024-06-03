@@ -3,13 +3,13 @@
 
 import sys
 sys.path.append('cace/')
-
+import os
 import numpy as np
 import torch
 import torch.nn as nn
 import logging
 import wandb
-
+import yaml
 import cace
 from cace.representations import Cace
 from cace.modules import CosineCutoff, MollifierCutoff, PolynomialCutoff
@@ -19,12 +19,21 @@ from cace.models.atomistic import NeuralNetworkPotential
 from cace.tasks.train import TrainingTask
 
 wandb.init(project='CACE')
-
-
 torch.set_default_dtype(torch.float32)
-
 cace.tools.setup_logger(level='INFO')
+
+TRAIN_FROM_SCRATCH = False
+
+config_path = 'pretrain_hyperparams.yaml'
+if os.path.exists(config_path):
+    with open (config_path, 'r') as file:
+        Hyperparams = yaml.load(file, Loader=yaml.FullLoader)
+        Hyperparams['train_from_scratch'] = TRAIN_FROM_SCRATCH
+    wandb.config.update(Hyperparams)
+
 PRETRAIN = {"status": False, "ratio": 0}
+
+logging.info("Finetuining the model!")
 logging.info("reading data")
 collection = cace.tasks.get_dataset_from_xyz(train_path='dataset_1593.xyz',
                                  valid_fraction=0.1,
@@ -50,9 +59,10 @@ valid_loader = cace.tasks.load_data_loader(collection=collection,
                               pretrain_config=PRETRAIN, 
                               )
 
-use_device = 'cuda'
+use_device = 'cpu'
 device = cace.tools.init_device(use_device)
-logging.info(f"device: {use_device}")
+# device = torch.device(use_device)
+logging.info(f"device: {device}")
 
 
 logging.info("building CACE representation")
@@ -97,7 +107,9 @@ cace_nnp = NeuralNetworkPotential(
     representation=cace_representation,
     output_modules=[atomwise, forces]
 )
-
+# load state_dict from pre-trained model
+if Hyperparams['train_from_scratch'] == False:
+    cace_nnp = torch.load('pretrain-water-model.pth')
 
 cace_nnp.to(device)
 if torch.cuda.device_count() > 1:
