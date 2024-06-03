@@ -18,19 +18,25 @@ from cace.modules import BesselRBF, GaussianRBF, GaussianRBFCentered
 from cace.models.atomistic import NeuralNetworkPotential
 from cace.tasks.train import TrainingTask
 
-wandb.init(project='CACE')
 torch.set_default_dtype(torch.float32)
 cace.tools.setup_logger(level='INFO')
 
 TRAIN_FROM_SCRATCH = False
 
-config_path = 'pretrain_hyperparams.yaml'
-if os.path.exists(config_path):
-    with open (config_path, 'r') as file:
-        Hyperparams = yaml.load(file, Loader=yaml.FullLoader)
+if TRAIN_FROM_SCRATCH:
+    Hyperparams = {}
+    Hyperparams['train_from_scratch'] = TRAIN_FROM_SCRATCH
+else:
+    config_path = 'pretrain_hyperparams.yaml'
+    if os.path.exists(config_path):
+        with open (config_path, 'r') as file:
+            Hyperparams = yaml.load(file, Loader=yaml.FullLoader)
+            Hyperparams['train_from_scratch'] = TRAIN_FROM_SCRATCH
+    else:
+        Hyperparams = {}
         Hyperparams['train_from_scratch'] = TRAIN_FROM_SCRATCH
-    wandb.config.update(Hyperparams)
-
+        
+wandb.init(project='CACE', config=Hyperparams)
 PRETRAIN = {"status": False, "ratio": 0}
 
 logging.info("Finetuining the model!")
@@ -43,7 +49,7 @@ collection = cace.tasks.get_dataset_from_xyz(train_path='dataset_1593.xyz',
                                  atomic_energies={1: -187.6043857100553, 8: -93.80219285502734} # avg
                                  )
 cutoff = 5.5
-batch_size = 20
+batch_size = 10
 
 train_loader = cace.tasks.load_data_loader(collection=collection,
                               data_type='train',
@@ -59,7 +65,7 @@ valid_loader = cace.tasks.load_data_loader(collection=collection,
                               pretrain_config=PRETRAIN, 
                               )
 
-use_device = 'cpu'
+use_device = 'cuda:2'
 device = cace.tools.init_device(use_device)
 # device = torch.device(use_device)
 logging.info(f"device: {device}")
@@ -109,12 +115,16 @@ cace_nnp = NeuralNetworkPotential(
 )
 # load state_dict from pre-trained model
 if Hyperparams['train_from_scratch'] == False:
-    cace_nnp = torch.load('pretrain-water-model.pth')
+    if os.path.exists('pretrain-water-model.pth'):
+        cace_nnp = torch.load('pretrain-water-model.pth')
+        logging.info("Pre-trained model loaded")
+    else:
+        logging.info("Pre-trained model not found")
 
 cace_nnp.to(device)
-if torch.cuda.device_count() > 1:
-    print(f"Using {torch.cuda.device_count()} GPUs!")
-    cace_nnp = nn.DataParallel(cace_nnp)
+# if torch.cuda.device_count() > 1:
+#     print(f"Using {torch.cuda.device_count()} GPUs!")
+#     cace_nnp = nn.DataParallel(cace_nnp)
 
 logging.info(f"First train loop:")
 energy_loss = cace.tasks.GetLoss(
