@@ -149,7 +149,7 @@ task = TrainingTask(
 logging.info("training")
 task.fit(train_loader, valid_loader, epochs=40, screen_nan=False)
 
-task.save_model('pretrain_water-model.pth')
+task.save_model('pretrain-water-model.pth')
 cace_nnp.to(device)
 
 
