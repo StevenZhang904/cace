@@ -24,7 +24,9 @@ wandb.init(project='CACE_pretrain')
 torch.set_default_dtype(torch.float32)
 
 cace.tools.setup_logger(level='INFO')
-PRETRAIN = {"status": True, "ratio": 0.5}
+Hyperparams = {"pretrain":{"status": True, "ratio": 0.1}, "lr":5e-4, }
+PRETRAIN = Hyperparams['pretrain']
+wandb.config.update(PRETRAIN)
 logging.info("Pretraining the model!")
 logging.info("reading data")
 collection = cace.tasks.get_dataset_from_xyz(train_path='dataset_1593.xyz',
@@ -123,26 +125,26 @@ disp_metric = Metrics(
 # Example usage
 logging.info("creating training task")
 
-optimizer_args = {'lr': 1e-2, 'betas': (0.99, 0.999)}  
+optimizer_args = {'lr': Hyperparams['lr'], 'betas': (0.99, 0.999)}  
 scheduler_args = {'step_size': 20, 'gamma': 0.5}
 
-for i in range(5):
-    task = TrainingTask(
-        model=cace_nnp,
-        losses=[disp_loss],
-        metrics=[disp_metric],
-        device=device,
-        optimizer_args=optimizer_args,
-        scheduler_cls=torch.optim.lr_scheduler.StepLR,
-        scheduler_args=scheduler_args,
-        max_grad_norm=10,
-        ema=True,
-        ema_start=10,
-        warmup_steps=5,
-    )
 
-    logging.info("training")
-    task.fit(train_loader, valid_loader, epochs=40, screen_nan=False)
+task = TrainingTask(
+    model=cace_nnp,
+    losses=[disp_loss],
+    metrics=[disp_metric],
+    device=device,
+    optimizer_args=optimizer_args,
+    scheduler_cls=torch.optim.lr_scheduler.StepLR,
+    scheduler_args=scheduler_args,
+    max_grad_norm=10,
+    ema=True,
+    ema_start=10,
+    warmup_steps=5,
+)
+
+logging.info("training")
+task.fit(train_loader, valid_loader, epochs=40, screen_nan=False)
 
 task.save_model('water-model.pth')
 cace_nnp.to(device)

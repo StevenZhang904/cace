@@ -120,7 +120,7 @@ class TrainingTask(nn.Module):
         self.log_metrics('train', pred, batch_dict)
 
         loss = self.loss_fn(pred, batch_dict, {'epochs': self.global_step, 'training': True})
-        print("loss: ", loss)   
+        # print("loss: ", loss)   
         loss.backward()
 
         # Print gradients for debugging purposes

@@ -2,7 +2,7 @@ import logging
 import torch
 import torch.nn as nn
 from typing import Optional, Dict, List
-
+import wandb
 from .torch_tools import to_numpy
 
 __all__ = ['Metrics', 'compute_loss_metrics']
@@ -116,6 +116,7 @@ class Metrics(nn.Module):
             logging.info(
                 f'{subset}_{self.name}_{metric}: {metric_mean:.6f}',
             )
+            wandb.log({f'{subset}_{self.name}_{metric}': to_numpy(metric_mean)})
         if clear:
             self.clear_metrics(subset)
 
