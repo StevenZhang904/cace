@@ -100,7 +100,9 @@ cace_nnp = NeuralNetworkPotential(
 
 
 cace_nnp.to(device)
-
+if torch.cuda.device_count() > 1:
+    print(f"Using {torch.cuda.device_count()} GPUs!")
+    cace_nnp = nn.DataParallel(cace_nnp)
 
 logging.info(f"First train loop:")
 energy_loss = cace.tasks.GetLoss(
