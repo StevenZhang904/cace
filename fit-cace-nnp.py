@@ -49,7 +49,7 @@ collection = cace.tasks.get_dataset_from_xyz(train_path='dataset_1593.xyz',
                                  atomic_energies={1: -187.6043857100553, 8: -93.80219285502734} # avg
                                  )
 cutoff = 5.5
-batch_size = 10
+batch_size = 20
 
 train_loader = cace.tasks.load_data_loader(collection=collection,
                               data_type='train',
@@ -65,7 +65,7 @@ valid_loader = cace.tasks.load_data_loader(collection=collection,
                               pretrain_config=PRETRAIN, 
                               )
 
-use_device = 'cuda:2'
+use_device = 'cuda'
 device = cace.tools.init_device(use_device)
 # device = torch.device(use_device)
 logging.info(f"device: {device}")
