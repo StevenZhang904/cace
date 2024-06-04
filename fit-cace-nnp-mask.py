@@ -25,11 +25,12 @@ wandb.init(project='CACE_pretrain')
 torch.set_default_dtype(torch.float32)
 
 cace.tools.setup_logger(level='INFO')
-Hyperparams = {"pretrain":{"status": True, "ratio": 0.25}, "lr":1e-4, }
+Hyperparams = {"pretrain":{"status": True, "ratio": 0.5}, "lr":1e-4, "epoch": 80, "batch_size": 1, "cutoff": 5.5,}
 ### save hyperparameters as yaml
 with open('pretrain_hyperparams.yaml', 'w') as file:
     yaml.dump(Hyperparams, file)
 PRETRAIN = Hyperparams['pretrain']
+RATIO = PRETRAIN['ratio']
 wandb.config.update(Hyperparams)
 logging.info("Pretraining the model!")
 logging.info("reading data")
@@ -40,8 +41,8 @@ collection = cace.tasks.get_dataset_from_xyz(train_path='dataset_1593.xyz',
                                  forces_key='force',
                                  atomic_energies={1: -187.6043857100553, 8: -93.80219285502734} # avg
                                  )
-cutoff = 5.5
-batch_size = 1
+cutoff = Hyperparams['cutoff']
+batch_size = Hyperparams['batch_size']
 
 train_loader = cace.tasks.load_data_loader(collection=collection,
                               data_type='train',
@@ -55,7 +56,7 @@ valid_loader = cace.tasks.load_data_loader(collection=collection,
                               cutoff=cutoff,
                               pretrain_config=PRETRAIN)
 
-use_device = 'cpu'
+use_device = 'cuda:0'
 device = cace.tools.init_device(use_device)
 # device = torch.device(use_device)
 logging.info(f"device: {use_device}")
@@ -107,9 +108,9 @@ cace_nnp = NeuralNetworkPotential(
 
 cace_nnp.to(device)
 
-if torch.cuda.device_count() > 1:
-    print(f"Using {torch.cuda.device_count()} GPUs!")
-    cace_nnp = nn.DataParallel(cace_nnp)
+# if torch.cuda.device_count() > 1:
+#     print(f"Using {torch.cuda.device_count()} GPUs!")
+#     cace_nnp = nn.DataParallel(cace_nnp)
 
 logging.info(f"First train loop:")
 
@@ -152,9 +153,9 @@ task = TrainingTask(
 )
 
 logging.info("training")
-task.fit(train_loader, valid_loader, epochs=40, screen_nan=False)
+task.fit(train_loader, valid_loader, epochs=Hyperparams['epoch'], screen_nan=False)
 
-task.save_model(f'pretrain-water-model-{PRETRAIN['ratio']}.pth')
+task.save_model('pretrain-water-model-{}.pth'.format(RATIO))
 cace_nnp.to(device)
 
 trainable_params = sum(p.numel() for p in cace_nnp.parameters() if p.requires_grad)
