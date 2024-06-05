@@ -101,6 +101,8 @@ def get_rel_disp(mask, pos, cell_size):
 
         returns: a list of displacements with shape (N, 3)
         '''
+
+
         masked_disp = torch.zeros_like(pos)
         for i in range(0, len(mask), 3):
             if mask[i] == 1:
@@ -115,22 +117,22 @@ def get_rel_disp(mask, pos, cell_size):
                         raise ValueError('mask value error')
 
                 # fist, make sure the displacement is within the box
-                # masked_disp[i] = torch.remainder(masked_disp[i]  + cell_size[0]/2., cell_size[0]) - cell_size[0]/2.
-                # masked_disp[i+1] = torch.remainder(masked_disp[i+1] + cell_size[1]/2., cell_size[1]) - cell_size[1]/2.
-                # masked_disp[i+2] = torch.remainder(masked_disp[i+2] + cell_size[2]/2., cell_size[2]) - cell_size[2]/2.
+                masked_disp[i] = torch.remainder(masked_disp[i]  + cell_size[0][0]/2., cell_size[0][0]) - cell_size[0][0]/2.
+                masked_disp[i+1] = torch.remainder(masked_disp[i+1] + cell_size[1][1]/2., cell_size[1][1]) - cell_size[1][1]/2.
+                masked_disp[i+2] = torch.remainder(masked_disp[i+2] + cell_size[2][2]/2., cell_size[2][2]) - cell_size[2][2]/2.
                 
                 ### TODO: fix this, the above code will cause nan in disp
-                masked_disp[i] = apply_pbc(masked_disp[i], cell_size)
-                masked_disp[i+1] = apply_pbc(masked_disp[i+1], cell_size)
-                masked_disp[i+2] = apply_pbc(masked_disp[i+2], cell_size)
+                # masked_disp[i] = apply_pbc(masked_disp[i], cell_size)
+                # masked_disp[i+1] = apply_pbc(masked_disp[i+1], cell_size)
+                # masked_disp[i+2] = apply_pbc(masked_disp[i+2], cell_size)
 
                 # normalize
-                if torch.norm(masked_disp[i]) != 0:
-                    masked_disp[i] = masked_disp[i] / torch.norm(masked_disp[i])
-                if torch.norm(masked_disp[i+1]) != 0:
-                    masked_disp[i+1] = masked_disp[i+1] / torch.norm(masked_disp[i+1])
-                if torch.norm(masked_disp[i+2]) != 0:
-                    masked_disp[i+2] = masked_disp[i+2] / torch.norm(masked_disp[i+2])
+                # if torch.norm(masked_disp[i]) != 0:
+                #     masked_disp[i] = masked_disp[i] / torch.norm(masked_disp[i])
+                # if torch.norm(masked_disp[i+1]) != 0:
+                #     masked_disp[i+1] = masked_disp[i+1] / torch.norm(masked_disp[i+1])
+                # if torch.norm(masked_disp[i+2]) != 0:
+                #     masked_disp[i+2] = masked_disp[i+2] / torch.norm(masked_disp[i+2])
 
         masked_disp = masked_disp[mask != 2].view(-1,3) # remove masked hydrogen from it
         return masked_disp     
