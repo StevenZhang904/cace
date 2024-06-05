@@ -25,7 +25,7 @@ wandb.init(project='CACE_pretrain')
 torch.set_default_dtype(torch.float32)
 
 cace.tools.setup_logger(level='INFO')
-Hyperparams = {"pretrain":{"status": True, "ratio": 0.5}, "lr":1e-4, "epoch": 80, "batch_size": 1, "cutoff": 5.5,}
+Hyperparams = {"pretrain":{"status": True, "ratio": 0.75}, "lr":5e-5, "epoch": 40, "batch_size": 1, "cutoff": 5.5,}
 ### save hyperparameters as yaml
 with open('pretrain_hyperparams.yaml', 'w') as file:
     yaml.dump(Hyperparams, file)
@@ -56,7 +56,7 @@ valid_loader = cace.tasks.load_data_loader(collection=collection,
                               cutoff=cutoff,
                               pretrain_config=PRETRAIN)
 
-use_device = 'cuda:0'
+use_device = 'cuda:1'
 device = cace.tools.init_device(use_device)
 # device = torch.device(use_device)
 logging.info(f"device: {use_device}")
@@ -155,7 +155,7 @@ task = TrainingTask(
 logging.info("training")
 task.fit(train_loader, valid_loader, epochs=Hyperparams['epoch'], screen_nan=False)
 
-task.save_model('pretrain-water-model-{}.pth'.format(RATIO))
+task.save_model('pretrain-water-model-{}-epoch{}.pth'.format(RATIO, Hyperparams['epoch']))
 cace_nnp.to(device)
 
 trainable_params = sum(p.numel() for p in cace_nnp.parameters() if p.requires_grad)
