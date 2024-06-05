@@ -20,7 +20,8 @@ from cace.tasks.train import TrainingTask
 import wandb
 import yaml
 
-wandb.init(project='CACE_pretrain')
+wandb.init(project='CACE_pretrain', notes='Xavier init mask embedding')
+use_device = 'cuda:0'
 
 torch.set_default_dtype(torch.float32)
 
@@ -56,7 +57,6 @@ valid_loader = cace.tasks.load_data_loader(collection=collection,
                               cutoff=cutoff,
                               pretrain_config=PRETRAIN)
 
-use_device = 'cuda:1'
 device = cace.tools.init_device(use_device)
 # device = torch.device(use_device)
 logging.info(f"device: {use_device}")

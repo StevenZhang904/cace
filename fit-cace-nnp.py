@@ -22,6 +22,8 @@ torch.set_default_dtype(torch.float32)
 cace.tools.setup_logger(level='INFO')
 
 TRAIN_FROM_SCRATCH = False
+PRETRAIN_CKPT_PATH = "pretrain-water-model-0.75-epoch40.pth"
+use_device = 'cuda:1'
 
 if TRAIN_FROM_SCRATCH:
     Hyperparams = {}
@@ -32,12 +34,16 @@ else:
         with open (config_path, 'r') as file:
             Hyperparams = yaml.load(file, Loader=yaml.FullLoader)
             Hyperparams['train_from_scratch'] = TRAIN_FROM_SCRATCH
+            Hyperparams['PRETRAIN_CKPT_PATH'] = PRETRAIN_CKPT_PATH
     else:
         Hyperparams = {}
         Hyperparams['train_from_scratch'] = TRAIN_FROM_SCRATCH
+        Hyperparams['PRETRAIN_CKPT_PATH'] = PRETRAIN_CKPT_PATH
         
 wandb.init(project='CACE', config=Hyperparams)
+
 PRETRAIN = {"status": False, "ratio": 0}
+
 
 logging.info("Finetuining the model!")
 logging.info("reading data")
@@ -65,7 +71,6 @@ valid_loader = cace.tasks.load_data_loader(collection=collection,
                               pretrain_config=PRETRAIN, 
                               )
 
-use_device = 'cuda'
 device = cace.tools.init_device(use_device)
 # device = torch.device(use_device)
 logging.info(f"device: {device}")
@@ -115,8 +120,8 @@ cace_nnp = NeuralNetworkPotential(
 )
 # load state_dict from pre-trained model
 if Hyperparams['train_from_scratch'] == False:
-    if os.path.exists('pretrain-water-model.pth'):
-        cace_nnp = torch.load('pretrain-water-model.pth')
+    if os.path.exists(PRETRAIN_CKPT_PATH):
+        cace_nnp = torch.load(PRETRAIN_CKPT_PATH)
         logging.info("Pre-trained model loaded")
     else:
         logging.info("Pre-trained model not found")
