@@ -5,6 +5,7 @@ from typing import Sequence
 __all__ = [
     'NodeEncoder',
     'NodeEmbedding',
+    'NodeEmbedding_Masked',
     'EdgeEncoder',
     'NodeEncoder_with_interpolation',
     'ElementEncoder'
@@ -135,6 +136,37 @@ class NodeEmbedding(nn.Module):
         return (
             f"{self.__class__.__name__}(num_classes={self.embedding_weights.shape[0]}, embedding_dim={self.embedding_weights.shape[1]})"
         )
+
+class NodeEmbedding_Masked(nn.Module):
+    def __init__(self, node_dim: int, embedding_dim: int, trainable=True, random_seed=42):
+        super().__init__()
+        ## Generate a MLP
+        self.node_dim = node_dim
+        self.embedding_dim = embedding_dim
+        self.mlp = nn.Sequential(
+            nn.Linear(node_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, embedding_dim)
+        )
+
+        # Initialize parameters
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.xavier_uniform_(self.mlp[0].weight)
+        nn.init.xavier_uniform_(self.mlp[2].weight)
+        nn.init.xavier_uniform_(self.mlp[4].weight)
+
+    def forward(self, data: torch.Tensor) -> torch.Tensor:
+        return self.mlp(data)
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}(num_classes={self.node_dim * 2}, output_dim={self.embedding_dim})"
+        )
+
 
 class EdgeEncoder(nn.Module):
     def __init__(self, directed=True):
