@@ -182,10 +182,10 @@ class Cace(nn.Module):
         else:
             raise ValueError("mask should be either None or a tensor")
         
-        node_embedded_sender = self.node_mlp(torch.cat([node_embedded_sender, mask_embed], dim=1))
-        node_embedded_receiver = self.node_mlp(torch.cat([node_embedded_receiver, mask_embed], dim=1))
-        # node_embedded_sender+=mask_embed
-        # node_embedded_receiver+=mask_embed   
+        # node_embedded_sender = self.node_mlp(torch.cat([node_embedded_sender, mask_embed], dim=1))
+        # node_embedded_receiver = self.node_mlp(torch.cat([node_embedded_receiver, mask_embed], dim=1))
+        node_embedded_sender+=mask_embed
+        node_embedded_receiver+=mask_embed   
              
         ## get the edge type
         # print("egde_index", data["edge_index"])

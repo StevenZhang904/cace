@@ -55,10 +55,13 @@ class GetLoss(nn.Module):
 
         if target is not None:
             if self.name == "CosineSimilarity":
+                mask = target['mask']
+                # reference = target[self.target_name]
                 reference = F.normalize(target[self.target_name], dim=-1)
                 ### TODO: check with ZIJIE if double normalization is necessary
                 loss = 1 - loss_weight * self.loss_fn(
-                    pred[self.predict_name], reference).mean()
+                    pred[self.predict_name][mask==1], reference[mask==1]).mean() + 0.75+ nn.functional.l1_loss(pred[self.predict_name][mask==1], reference[mask==1])
+                del mask
             else:
                 loss = loss_weight * self.loss_fn(
                 pred[self.predict_name], target[self.target_name]
