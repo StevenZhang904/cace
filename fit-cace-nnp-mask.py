@@ -26,7 +26,7 @@ use_device = 'cuda:0'
 torch.set_default_dtype(torch.float32)
 
 cace.tools.setup_logger(level='INFO')
-Hyperparams = {"pretrain":{"status": True, "ratio": 0.75}, "lr":5e-5, "epoch": 40, "batch_size": 1, "cutoff": 5.5,}
+Hyperparams = {"pretrain":{"status": True, "ratio": 0.5}, "lr":5e-4, "epoch": 40, "batch_size": 20, "cutoff": 5.5,}
 ### save hyperparameters as yaml
 with open('pretrain_hyperparams.yaml', 'w') as file:
     yaml.dump(Hyperparams, file)

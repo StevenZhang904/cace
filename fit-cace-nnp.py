@@ -22,8 +22,8 @@ torch.set_default_dtype(torch.float32)
 cace.tools.setup_logger(level='INFO')
 
 TRAIN_FROM_SCRATCH = False
-PRETRAIN_CKPT_PATH = "pretrain-water-model-0.75-epoch40.pth"
-use_device = 'cuda:1'
+PRETRAIN_CKPT_PATH = "pretrain-water-model-0.75-epoch80.pth"
+use_device = 'cuda:0'
 
 if TRAIN_FROM_SCRATCH:
     Hyperparams = {}
