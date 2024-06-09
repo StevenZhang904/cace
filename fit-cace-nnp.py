@@ -21,8 +21,8 @@ from cace.tasks.train import TrainingTask
 torch.set_default_dtype(torch.float32)
 cace.tools.setup_logger(level='INFO')
 
-TRAIN_FROM_SCRATCH = False
-PRETRAIN_CKPT_PATH = "pretrain-water-model-0.75-epoch80.pth"
+TRAIN_FROM_SCRATCH = True
+PRETRAIN_CKPT_PATH = "pretrain-water-model-0.5-epoch40.pth"
 use_device = 'cuda:0'
 
 if TRAIN_FROM_SCRATCH:
@@ -40,7 +40,7 @@ else:
         Hyperparams['train_from_scratch'] = TRAIN_FROM_SCRATCH
         Hyperparams['PRETRAIN_CKPT_PATH'] = PRETRAIN_CKPT_PATH
         
-wandb.init(project='CACE', config=Hyperparams)
+wandb.init(project='CACE', config=Hyperparams, notes='No restart training')
 
 PRETRAIN = {"status": False, "ratio": 0}
 
@@ -136,7 +136,7 @@ energy_loss = cace.tasks.GetLoss(
     target_name='energy',
     predict_name='CACE_energy',
     loss_fn=torch.nn.MSELoss(),
-    loss_weight=0.1
+    loss_weight=1
 )
 
 force_loss = cace.tasks.GetLoss(
@@ -167,68 +167,25 @@ logging.info("creating training task")
 optimizer_args = {'lr': 1e-2, 'betas': (0.99, 0.999)}  
 scheduler_args = {'step_size': 20, 'gamma': 0.5}
 
-for i in range(5):
-    task = TrainingTask(
-        model=cace_nnp,
-        losses=[energy_loss, force_loss],
-        metrics=[e_metric, f_metric],
-        device=device,
-        optimizer_args=optimizer_args,
-        scheduler_cls=torch.optim.lr_scheduler.StepLR,
-        scheduler_args=scheduler_args,
-        max_grad_norm=10,
-        ema=True,
-        ema_start=10,
-        warmup_steps=5,
-    )
+task = TrainingTask(
+    model=cace_nnp,
+    losses=[energy_loss, force_loss],
+    metrics=[e_metric, f_metric],
+    device=device,
+    optimizer_args=optimizer_args,
+    scheduler_cls=torch.optim.lr_scheduler.StepLR,
+    scheduler_args=scheduler_args,
+    max_grad_norm=10,
+    ema=True,
+    ema_start=10,
+    warmup_steps=5,
+)
 
-    logging.info("training")
-    task.fit(train_loader, valid_loader, epochs=40, screen_nan=False)
+logging.info("training")
+task.fit(train_loader, valid_loader, epochs=300, screen_nan=False)
 
 task.save_model('water-model.pth')
-cace_nnp.to(device)
 
-logging.info(f"Second train loop:")
-energy_loss = cace.tasks.GetLoss(
-    target_name='energy',
-    predict_name='CACE_energy',
-    loss_fn=torch.nn.MSELoss(),
-    loss_weight=1
-)
-
-task.update_loss([energy_loss, force_loss])
-logging.info("training")
-task.fit(train_loader, valid_loader, epochs=100, screen_nan=False)
-
-
-task.save_model('water-model-2.pth')
-cace_nnp.to(device)
-
-logging.info(f"Third train loop:")
-energy_loss = cace.tasks.GetLoss(
-    target_name='energy',
-    predict_name='CACE_energy',
-    loss_fn=torch.nn.MSELoss(),
-    loss_weight=10 
-)
-
-task.update_loss([energy_loss, force_loss])
-task.fit(train_loader, valid_loader, epochs=100, screen_nan=False)
-
-task.save_model('water-model-3.pth')
-
-logging.info(f"Fourth train loop:")
-energy_loss = cace.tasks.GetLoss(
-    target_name='energy',
-    predict_name='CACE_energy',
-    loss_fn=torch.nn.MSELoss(),
-    loss_weight=1000
-)
-
-task.update_loss([energy_loss, force_loss])
-task.fit(train_loader, valid_loader, epochs=100, screen_nan=False)
-
-task.save_model('water-model-4.pth')
 
 logging.info(f"Finished")
 
