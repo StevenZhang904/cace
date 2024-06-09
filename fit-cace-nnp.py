@@ -21,8 +21,8 @@ from cace.tasks.train import TrainingTask
 torch.set_default_dtype(torch.float32)
 cace.tools.setup_logger(level='INFO')
 
-TRAIN_FROM_SCRATCH = True
-PRETRAIN_CKPT_PATH = "pretrain-water-model-0.5-epoch40.pth"
+TRAIN_FROM_SCRATCH = False
+PRETRAIN_CKPT_PATH = "pretrain-water-model-0.75-epoch40.pth"
 use_device = 'cuda:0'
 
 if TRAIN_FROM_SCRATCH:
