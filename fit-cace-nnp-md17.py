@@ -2,8 +2,8 @@
 # coding: utf-8
 
 import sys
-sys.path.append('../../cace/')
-
+sys.path.append('cace/')
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -22,10 +22,60 @@ torch.set_default_dtype(torch.float32)
 cace.tools.setup_logger(level='INFO')
 
 import ase
-xyz = ase.io.read('../../datasets/md17_ethanol/train-n1000.xyz', ':')
+import wandb
+import yaml
+
+TRAIN_FROM_SCRATCH = True
+PRETRAIN_CKPT_PATH = "pretrain-md17-model-0.5-epoch40.pth"
+use_device = 'cuda:0'
+
+if TRAIN_FROM_SCRATCH:
+    Hyperparams = {}
+    Hyperparams['train_from_scratch'] = TRAIN_FROM_SCRATCH
+else:
+    config_path = 'pretrain_hyperparams.yaml'
+    if os.path.exists(config_path):
+        with open (config_path, 'r') as file:
+            Hyperparams = yaml.load(file, Loader=yaml.FullLoader)
+            Hyperparams['train_from_scratch'] = TRAIN_FROM_SCRATCH
+            Hyperparams['PRETRAIN_CKPT_PATH'] = PRETRAIN_CKPT_PATH
+    else:
+        Hyperparams = {}
+        Hyperparams['train_from_scratch'] = TRAIN_FROM_SCRATCH
+        Hyperparams['PRETRAIN_CKPT_PATH'] = PRETRAIN_CKPT_PATH
+        
+wandb.init(project='CACE_md17', config=Hyperparams)
+
+PRETRAIN = {"status": False, "ratio": 0}
+
+
+def parse_xyz_and_add_energy(file_path):
+    atoms_list = ase.io.read(file_path, index=':')
+    energies = []
+    with open(file_path, 'r') as file:
+        while True:
+            line = file.readline()
+            if not line:
+                break
+            num_atoms = int(line.strip())
+            second_line = file.readline()
+            energy_str = second_line.split('energy=')[1].split()[0]
+            energy = float(energy_str)
+            energies.append(energy)
+            for _ in range(num_atoms):
+                file.readline()  # Skip atom lines to reach the next configuration
+
+    for i, atoms in enumerate(atoms_list):
+        atoms.info['energy'] = energies[i]
+
+    return atoms_list
+
+# generate a file object from path 
+# xyz = ase.io.read('md17_ethanol/train-n1000.xyz', ':')
+xyz = parse_xyz_and_add_energy('md17_ethanol/train-n1000.xyz')
 avge0 = cace.tools.compute_average_E0s(xyz)
 
-collection = cace.tasks.get_dataset_from_xyz(train_path='../../datasets/md17_ethanol/train-n1000.xyz',
+collection = cace.tasks.get_dataset_from_xyz(train_path='md17_ethanol/train-n1000.xyz',
                                  valid_fraction=0.1,
                                  energy_key='energy',
                                  forces_key='forces',
@@ -37,14 +87,16 @@ batch_size = 10
 train_loader = cace.tasks.load_data_loader(collection=collection,
                               data_type='train',
                               batch_size=batch_size,
-                              cutoff=cutoff)
+                              cutoff=cutoff,
+                              pretrain_config=PRETRAIN,)
 
 valid_loader = cace.tasks.load_data_loader(collection=collection,
                               data_type='valid',
                               batch_size=100,
-                              cutoff=cutoff)
+                              cutoff=cutoff,
+                              pretrain_config=PRETRAIN,)
 
-use_device = 'cuda'
+use_device = 'cuda:0'
 device = cace.tools.init_device(use_device)
 logging.info(f"device: {use_device}")
 
